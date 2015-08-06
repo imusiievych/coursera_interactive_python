@@ -10,6 +10,7 @@ score = 0
 lives = 3
 time = 0
 
+
 class ImageInfo:
     def __init__(self, center, size, radius = 0, lifespan = None, animated = False):
         self.center = center
@@ -83,8 +84,10 @@ def dist(p,q):
     return math.sqrt((p[0] - q[0]) ** 2+(p[1] - q[1]) ** 2)
 
 
+
 # Ship class
 class Ship:
+    
     def __init__(self, pos, vel, angle, image, info):
         self.pos = [pos[0],pos[1]]
         self.vel = [vel[0],vel[1]]
@@ -96,6 +99,7 @@ class Ship:
         self.image_size = info.get_size()
         self.radius = info.get_radius()
         
+   
     def draw(self,canvas):
         if self.thrust:
             canvas.draw_image(ship_image, [135, 45], ship_info.get_size(), self.pos, [75,75], self.angle)
@@ -104,30 +108,45 @@ class Ship:
        
     def update(self):
         self.angle += self.angle_vel
-        self.pos[0] += self.vel[0]
-        self.pos[1] += self.vel[1]
+        
+        self.pos[0] += self.vel[0] 
+        self.pos[1] += self.vel[1] 
+        
+        self.vel[0] *= 0.99
+        self.vel[1] *= 0.99
+        
+        if self.thrust:
+            acc = angle_to_vector(self.angle)
+            self.vel[0] += acc[0] * 0.1
+            self.vel[1] += acc[1] * 0.1
+           
+        if self.pos[0] < 0:
+            self.pos[0] = WIDTH
+        elif self.pos[0] > WIDTH:
+            self.pos[0] = 0
+        if self.pos[1] < 0:
+            self.pos[1] = HEIGHT
+        elif self.pos[1] > HEIGHT:
+            self.pos[1] = 0
         
     def upd_angle(self, angle_acc):
         self.angle_vel += angle_acc
         
     def to_thrust(self, th):
-        acc = 1
         self.thrust = th
         if th:
             ship_thrust_sound.play()
-            self.vel[0] += acc
-            self.vel[1] += acc
         else:
             ship_thrust_sound.rewind()
-            self.vel[0] -= acc
-            self.vel[1] += acc
-        
-        
-            
+ 
+    def shoot(self):
+        global a_missile
+        fw_vector = angle_to_vector(self.angle)
+        missile_vel = [self.vel[0] + 8 * fw_vector[0], self.vel[1] + 8 * fw_vector[1]]
+        missile_pos = [self.pos[0] + self.radius * fw_vector[0], self.pos[1] + self.radius * fw_vector[1]]
+        a_missile = Sprite(missile_pos, missile_vel, self.angle, 0, missile_image, missile_info, missile_sound)
 
-                                  
-        
-    
+   
 # Sprite class
 class Sprite:
     def __init__(self, pos, vel, ang, ang_vel, image, info, sound = None):
@@ -147,14 +166,16 @@ class Sprite:
             sound.play()
    
     def draw(self, canvas):
-        canvas.draw_circle(self.pos, self.radius, 1, "Red", "Red")
+        canvas.draw_image(self.image, self.image_center, self.image_size, self.pos, self.image_size, self.angle)
     
     def update(self):
-        pass        
+        self.angle += self.angle_vel   
+        self.pos[0] += self.vel[0]
+        self.pos[1] += self.vel[1]
 
            
 def draw(canvas):
-    global time
+    global time, a_missile, lives, score
     
     # animiate background
     time += 1
@@ -164,7 +185,9 @@ def draw(canvas):
     canvas.draw_image(nebula_image, nebula_info.get_center(), nebula_info.get_size(), [WIDTH / 2, HEIGHT / 2], [WIDTH, HEIGHT])
     canvas.draw_image(debris_image, center, size, (wtime - WIDTH / 2, HEIGHT / 2), (WIDTH, HEIGHT))
     canvas.draw_image(debris_image, center, size, (wtime + WIDTH / 2, HEIGHT / 2), (WIDTH, HEIGHT))
-
+    canvas.draw_text("Lives: " + str(lives), (10, 40), 34, 'Red', 'serif')
+    canvas.draw_text("Score: " + str(score), (WIDTH - 150, 40), 34, 'Red', 'serif')
+    
     # draw ship and sprites
     my_ship.draw(canvas)
     a_rock.draw(canvas)
@@ -177,16 +200,21 @@ def draw(canvas):
             
 # timer handler that spawns a rock    
 def rock_spawner():
-    pass
+    global a_rock, WIDTH, HEIGHT
+    vel = [random.random(), random.random()]
+    ang_vel = random.choice([0.01, 0.02, 0.03, 0.04, 0.05])
+    pos = [random.randint(0, WIDTH), random.randint(0, HEIGHT)]
+    a_rock = Sprite(pos, vel, 0, ang_vel, asteroid_image, asteroid_info)
 
 def keydown_handler(key):
-    acc = 0.05
     if key == simplegui.KEY_MAP["left"]:
         my_ship.upd_angle(0.05)
     elif key == simplegui.KEY_MAP["right"]:
         my_ship.upd_angle(-0.05)
     elif key == simplegui.KEY_MAP["up"]:
         my_ship.to_thrust(True)
+    elif key == simplegui.KEY_MAP["space"]:
+        my_ship.shoot()
         
 def keyup_handler(key):
     if key == simplegui.KEY_MAP["left"] or key == simplegui.KEY_MAP["right"]:
@@ -196,15 +224,14 @@ def keyup_handler(key):
         
         
         
-        
-        
+      
 # initialize frame
 frame = simplegui.create_frame("Asteroids", WIDTH, HEIGHT)
 
 # initialize ship and two sprites
 my_ship = Ship([WIDTH / 2, HEIGHT / 2], [0, 0], 0, ship_image, ship_info)
-a_rock = Sprite([WIDTH / 3, HEIGHT / 3], [1, 1], 0, 0, asteroid_image, asteroid_info)
-a_missile = Sprite([2 * WIDTH / 3, 2 * HEIGHT / 3], [-1,1], 0, 0, missile_image, missile_info, missile_sound)
+a_rock = Sprite([WIDTH / 3, HEIGHT / 3], [1, 1], 0, 0.05, asteroid_image, asteroid_info)
+a_missile = Sprite([WIDTH / 3, HEIGHT / 3], [-1,1], 0, 0, missile_image, missile_info, missile_sound)
 
 # register handlers
 frame.set_draw_handler(draw)
